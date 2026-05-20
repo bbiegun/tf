@@ -56,7 +56,7 @@ The values of these flags determine how the attribute is treated by TF and the f
 | Required | Computed | Optional | Behavior                                                                                 |
 |----------|----------|----------|------------------------------------------------------------------------------------------|
 |          |          |          | _Invalid combination._ You must have at least one flag set.                              |
-|          |          | X        | Fields may be set. TODO: Have default values.                                            |
+|          |          | X        | Fields may be set. If unset/null and a `default` is declared, the default is planned.   |
 |          | X        |          | Computed fields are read-only, value is set by the server and cannot be set by the user. |
 |          | X        | X        | Field may be set. If not, uses value from server.                                        |
 | X        |          |          | Required fields must be present in the configuration.                                    |

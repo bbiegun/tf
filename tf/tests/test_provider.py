@@ -347,7 +347,7 @@ class HasSetBlockResource(ExampleMathResource):
 
 class DefaultAttributeProvider(ExampleProvider):
     def get_resources(self) -> list[Type[Resource]]:
-        return [DefaultAttributeResource, OptionalAttributeWithoutDefaultResource]
+        return [DefaultAttributeResource, OptionalAttributeWithDefaultResource, OptionalAttributeWithoutDefaultResource]
 
 
 class DefaultAttributeResource(ExampleMathResource):
@@ -363,6 +363,25 @@ class DefaultAttributeResource(ExampleMathResource):
                 schema.Attribute("a", types.Number(), required=True),
                 schema.Attribute("b", types.Number(), required=True, requires_replace=True),
                 schema.Attribute("c_with_default", types.Number(), computed=True, default=9001),
+                schema.Attribute("sum", types.Number(), computed=True),
+                schema.Attribute("product", types.Number(), computed=True),
+            ],
+        )
+
+
+class OptionalAttributeWithDefaultResource(ExampleMathResource):
+    @classmethod
+    def get_name(cls) -> str:
+        return "math_optional_with_default"
+
+    @classmethod
+    def get_schema(cls) -> schema.Schema:
+        return schema.Schema(
+            version=2,
+            attributes=[
+                schema.Attribute("a", types.Number(), required=True),
+                schema.Attribute("b", types.Number(), required=True, requires_replace=True),
+                schema.Attribute("c_optional_default", types.Number(), optional=True, default=9001),
                 schema.Attribute("sum", types.Number(), computed=True),
                 schema.Attribute("product", types.Number(), computed=True),
             ],
@@ -708,6 +727,52 @@ class PlanResourceChangeTest(ProviderTestBase):
         self.assertEqual(resp.requires_replace, [])
         self.assertEqual(resp.planned_private, b"")
         self.assertEqual(resp.legacy_type_system, False)
+
+    def test_create_optional_default_value(self):
+        provider, servicer, ctx = self.provider_servicer_context(DefaultAttributeProvider)
+        resp = servicer.PlanResourceChange(
+            pb.PlanResourceChange.Request(
+                type_name="test_math_optional_with_default",
+                prior_state=to_dynamic_value(None),
+                proposed_new_state=to_dynamic_value(
+                    {"a": 1, "b": 2, "sum": None, "product": None, "c_optional_default": None}
+                ),
+                config=to_dynamic_value(None),
+                prior_private=b"",
+                provider_meta={},
+            ),
+            ctx,
+        )
+
+        self.assert_no_diagnostic_errors(resp)
+        self.assertEqual(
+            resp.planned_state,
+            to_dynamic_value(
+                {"a": 1, "b": 2, "sum": types.Unknown, "product": types.Unknown, "c_optional_default": 9001}
+            ),
+        )
+
+    def test_update_optional_default_value(self):
+        provider, servicer, ctx = self.provider_servicer_context(DefaultAttributeProvider)
+        resp = servicer.PlanResourceChange(
+            pb.PlanResourceChange.Request(
+                type_name="test_math_optional_with_default",
+                prior_state=to_dynamic_value({"a": 1, "b": 2, "sum": 3, "product": 2, "c_optional_default": 7}),
+                proposed_new_state=to_dynamic_value(
+                    {"a": 1, "b": 2, "sum": 3, "product": 2, "c_optional_default": None}
+                ),
+                config=to_dynamic_value(None),
+                prior_private=b"",
+                provider_meta={},
+            ),
+            ctx,
+        )
+
+        self.assert_no_diagnostic_errors(resp)
+        self.assertEqual(
+            resp.planned_state,
+            to_dynamic_value({"a": 1, "b": 2, "sum": 3, "product": 2, "c_optional_default": 9001}),
+        )
 
     def test_create_no_default_value(self):
         """Verify CREATE with an optional attribute without a default"""

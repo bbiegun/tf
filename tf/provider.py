@@ -61,6 +61,28 @@ def _decode_state(
     return st, {**attr_state, **block_state}
 
 
+def _has_plannable_default(attr: Attribute) -> bool:
+    return attr.default is not Unknown and (attr.optional or attr.computed)
+
+
+def _apply_attribute_defaults(
+    state: Optional[dict[str, Any]],
+    attrs: dict[str, Attribute],
+) -> Optional[dict[str, Any]]:
+    if state is None:
+        return None
+
+    out = dict(state)
+    for name, attr in attrs.items():
+        if not _has_plannable_default(attr):
+            continue
+
+        if name not in out or out[name] is None:
+            out[name] = attr.default
+
+    return out
+
+
 def _encode_state_d(
     attrs: dict[str, Attribute],
     blocks: dict[str, NestedBlock],
@@ -366,6 +388,9 @@ class ProviderServicer(rpc.ProviderServicer):
         if diags.has_errors():
             return pb.PlanResourceChange.Response(diagnostics=diags.to_pb())
 
+        # Apply schema defaults to null/missing optional/computed attributes.
+        proposed_new_state = _apply_attribute_defaults(proposed_new_state, attrs)
+
         # config = read_dynamic_value(request.config)
         # prior_private = request.prior_private
 
@@ -392,11 +417,18 @@ class ProviderServicer(rpc.ProviderServicer):
                     # Attribute
                     if v is not None:
                         new_state[k] = v
+                    elif _has_plannable_default(attrs[k]):
+                        new_state[k] = attrs[k].default
                     elif not attrs[k].computed:
                         # TF requires non-computed unspecified fields to be set to None as their planned value
                         new_state[k] = None
                     else:
-                        new_state[k] = attrs[k].default
+                        new_state[k] = Unknown
+
+            # Backfill missing attributes that carry defaults.
+            for attr_name, attr in attrs.items():
+                if attr_name not in new_state and _has_plannable_default(attr):
+                    new_state[attr_name] = attr.default
 
             new_state_encoded = _encode_state(attrs, blocks, new_state, proposed_enc)
             return pb.PlanResourceChange.Response(planned_state=new_state_encoded, diagnostics=diags.to_pb())

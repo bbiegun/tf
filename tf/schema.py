@@ -31,7 +31,7 @@ class Attribute:
     :param description_kind: Description kind (defaults to Markdown)
     :param deprecated: Deprecated?
     :param requires_replace: Should a change of this value require a replace of the resource?
-    :param default: If this value is computed but not set, this will be the default value in the change plan
+    :param default: If this value is optional/computed and unset (or null), this default is used in planning
     """
 
     def __init__(

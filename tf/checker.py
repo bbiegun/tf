@@ -35,5 +35,9 @@ def check_attributes(diags: Diagnostics, attributes: Sequence[Attribute]):
         if computed and required:
             diags.add_error("Computed cannot be set if required", **path)
 
-        if not computed and a.default is not Unknown:
-            diags.add_error("You cannot set a default value if computed is not also set", **path)
+        if a.default is not Unknown:
+            if required:
+                diags.add_error("Default value cannot be set on required attributes", **path)
+
+            if not optional and not computed:
+                diags.add_error("Default value requires optional or computed", **path)
