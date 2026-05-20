@@ -117,12 +117,24 @@ def run_provider(provider: Provider, argv: Optional[list[str]] = None):
     stdio_rpc.add_GRPCStdioServicer_to_server(GRPCStdioServicer(), server)
 
     with tempfile.TemporaryDirectory() as tmp:
-        sock_file = f"{tmp}/py-tf-plugin.sock" if "--stable" not in argv else "/tmp/py-tf-plugin.sock"
-        tx = f"unix://{sock_file}"
+        # Windows does not support Unix-domain sockets with gRPC's URI parser,
+        # so fall back to a loopback TCP port for the go-plugin handshake.
+        _is_windows = sys.platform == "win32"
+        if _is_windows:
+            network = "tcp"
+            # Bind to an ephemeral loopback port; gRPC fills it in via add_*_port return value.
+            tx = "127.0.0.1:0"
+            sock_file = None  # set after server binds
+        else:
+            network = "unix"
+            sock_file = f"{tmp}/py-tf-plugin.sock" if "--stable" not in argv else "/tmp/py-tf-plugin.sock"
+            tx = f"unix://{sock_file}"
 
         if "--dev" in argv:
             print("Running in dev mode\n")
-            server.add_insecure_port(tx)
+            bound_port = server.add_insecure_port(tx)
+            if _is_windows:
+                sock_file = f"127.0.0.1:{bound_port}"
             conf = json.dumps(
                 {
                     provider.full_name(): {
@@ -131,7 +143,7 @@ def run_provider(provider: Provider, argv: Optional[list[str]] = None):
                         "Pid": os.getpid(),
                         "Test": True,
                         "Addr": {
-                            "Network": "unix",
+                            "Network": network,
                             "String": sock_file,
                         },
                     },
