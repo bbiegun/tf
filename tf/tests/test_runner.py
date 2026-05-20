@@ -1,4 +1,6 @@
+import base64
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -180,7 +182,7 @@ class InstallProviderTest(TestCase):
             provider_script=self.provider_script,
         )
 
-        files = {str(p.relative_to(self.plugin_dir)) for p in self.plugin_dir.glob("**/*") if not p.is_dir()}
+        files = {p.relative_to(self.plugin_dir).as_posix() for p in self.plugin_dir.glob("**/*") if not p.is_dir()}
 
         self.assertEqual(
             {
@@ -201,7 +203,7 @@ class InstallProviderTest(TestCase):
         )
 
         # Sets up specific version manifest
-        sig = "h1:5rBZidGPnUJztLQV+yU6OHDrEiXjR2nEwlWQLphmGDM="
+        sig = f"h1:{base64.b64encode(hashlib.sha256(self.provider_script.read_bytes()).digest()).decode()}"
         self.assertEqual(
             json.loads((self.plugin_dir / "terraform.example.com/example/example/1.2.3.json").read_text()),
             {
@@ -309,8 +311,12 @@ class SSLCertificateCacheTest(TestCase):
         cert_chain, server_creds = runner._self_signed_cert()
         self.assertTrue(self.cache_path.exists())
         stat = self.cache_path.stat()
-        # Verify not world-readable or writable
-        self.assertEqual(stat.st_mode & 0o777, 0o600)
+        if os.name == "nt":
+            # Windows uses ACLs; stat() mode bits do not map directly to POSIX permissions.
+            self.assertEqual(stat.st_mode & 0o111, 0)
+        else:
+            # Verify not world-readable or writable on POSIX.
+            self.assertEqual(stat.st_mode & 0o777, 0o600)
 
     def test_uses_cached_cert_when_valid(self):
         """Test that cached certificate is used when still valid"""

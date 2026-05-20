@@ -407,6 +407,33 @@ class OptionalAttributeWithoutDefaultResource(ExampleMathResource):
         )
 
 
+class AttributeDefaultHelpersTest(TestCase):
+    def test_apply_attribute_defaults_populates_missing_or_none(self):
+        attrs = {
+            "with_default": schema.Attribute("with_default", types.Number(), optional=True, default=9001),
+            "computed_default": schema.Attribute("computed_default", types.Number(), computed=True, default=7),
+        }
+
+        state = {"with_default": None}
+        self.assertEqual(
+            p._apply_attribute_defaults(state, attrs),
+            {"with_default": 9001, "computed_default": 7},
+        )
+
+    def test_apply_attribute_defaults_preserves_explicit_values(self):
+        attrs = {
+            "with_default": schema.Attribute("with_default", types.Number(), optional=True, default=9001),
+            "computed_default": schema.Attribute("computed_default", types.Number(), computed=True, default=7),
+            "no_default": schema.Attribute("no_default", types.Number(), optional=True),
+        }
+
+        state = {"with_default": 123, "computed_default": 5, "no_default": None}
+        self.assertEqual(
+            p._apply_attribute_defaults(state, attrs),
+            {"with_default": 123, "computed_default": 5, "no_default": None},
+        )
+
+
 class AbortError(Exception):
     def __init__(self, code, details):
         self.code = code
