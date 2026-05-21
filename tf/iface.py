@@ -118,6 +118,7 @@ class ImportContext(_Context): ...
 @dataclass
 class PlanContext(_Context):
     changed_fields: set[str]
+    config: Optional[Config] = None
 
 
 class Resource(AbstractResource, Protocol):

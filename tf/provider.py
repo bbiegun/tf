@@ -366,7 +366,7 @@ class ProviderServicer(rpc.ProviderServicer):
         if diags.has_errors():
             return pb.PlanResourceChange.Response(diagnostics=diags.to_pb())
 
-        # config = read_dynamic_value(request.config)
+        config = read_dynamic_value(request.config)
         # prior_private = request.prior_private
 
         klass = self._get_res_cls(type_name)
@@ -440,7 +440,12 @@ class ProviderServicer(rpc.ProviderServicer):
         proposed_copy = deepcopy(proposed_new_state) if proposed_new_state is not None else None
 
         proposed_new_state = inst.plan(
-            PlanContext(diags, type_name, changed_fields=changed_keys),
+            PlanContext(
+                diags,
+                type_name,
+                changed_fields=changed_keys,
+                config=deepcopy(config) if config is not None else None,
+            ),
             prior_copy,
             proposed_copy or {},
         )

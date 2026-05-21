@@ -793,6 +793,32 @@ class PlanResourceChangeTest(ProviderTestBase):
             ),
         )
 
+    def test_update_plan_receives_request_config(self):
+        provider, servicer, ctx = self.provider_servicer_context()
+        captured = {}
+
+        def _plan(_self, plan_ctx, current, planned):
+            captured["ctx"] = plan_ctx
+            return planned
+
+        with patch.object(ExampleMathResource, "plan", autospec=True, side_effect=_plan) as mock_plan:
+            resp = servicer.PlanResourceChange(
+                pb.PlanResourceChange.Request(
+                    type_name="test_math",
+                    prior_state=to_dynamic_value({"a": 1, "b": 2, "sum": 3, "product": 2}),
+                    proposed_new_state=to_dynamic_value({"a": 2, "b": 2, "sum": 3, "product": 2}),
+                    config=to_dynamic_value({"a": 2, "product": None}),
+                    prior_private=b"",
+                    provider_meta={},
+                ),
+                ctx,
+            )
+
+        self.assert_no_diagnostic_errors(resp)
+        mock_plan.assert_called_once()
+        self.assertEqual(captured["ctx"].changed_fields, {"a"})
+        self.assertEqual(captured["ctx"].config, {"a": 2, "product": None})
+
     # TODO(Hunter): Add test for no fields change
 
     def test_requires_replace(self):
